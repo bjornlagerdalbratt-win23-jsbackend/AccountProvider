@@ -10,13 +10,14 @@ using System;
 
 namespace AccountProvider.Functions
 {
-    public class SignIn(ILogger<SignIn> logger, SignInManager<UserAccount> signInManager)
+    public class SignIn(ILogger<SignIn> logger, SignInManager<UserAccount> signInManager, UserManager<UserAccount> userManager)
     {
         private readonly ILogger<SignIn> _logger = logger;
+        private readonly UserManager<UserAccount> _userManager = userManager;
         private readonly SignInManager<UserAccount> _signInManager = signInManager;
 
         [Function("SignIn")]
-        public async Task <IActionResult> Run([HttpTrigger(AuthorizationLevel.Function, "post")] HttpRequest req)
+        public async Task<IActionResult> Run([HttpTrigger(AuthorizationLevel.Function, "post")] HttpRequest req)
         {
             string body = null!;
 
@@ -30,7 +31,7 @@ namespace AccountProvider.Functions
                 _logger.LogError($"StreamReader :: {ex.Message}");
             }
 
-            if ( body != null)
+            if (body != null)
             {
                 UserSigninRequest usr = null!;
 
@@ -46,21 +47,23 @@ namespace AccountProvider.Functions
                 {
                     try
                     {
-                        var result = await _signInManager.PasswordSignInAsync(usr.Email, usr.Password, usr.RememberMe, false);
+                        var userAccount = await _userManager.FindByEmailAsync(usr.Email);
+                        var result = await _signInManager.CheckPasswordSignInAsync(userAccount!, usr.Password, false);
                         if (result.Succeeded)
                         {
                             //get token from tokenProvider
 
                             return new OkObjectResult("accesstoken");
                         }
-
-                        return new UnauthorizedResult();
                     }
                     catch (Exception ex)
                     {
                         _logger.LogError($"signInManager.PasswordSignInAsync :: {ex.Message}");
                     }
+
+                    return new UnauthorizedResult();
                 }
+
             }
 
             return new BadRequestResult();
